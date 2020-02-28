@@ -20,7 +20,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import it.nextworks.nfvmano.sebastian.admin.elements.VirtualResourceUsage;
+import it.nextworks.nfvmano.sebastian.admin.elements.*;
+import it.nextworks.nfvmano.sebastian.admin.repo.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,15 +33,6 @@ import it.nextworks.nfvmano.libs.ifa.common.exceptions.AlreadyExistingEntityExce
 import it.nextworks.nfvmano.libs.ifa.common.exceptions.FailedOperationException;
 import it.nextworks.nfvmano.libs.ifa.common.exceptions.MalformattedElementException;
 import it.nextworks.nfvmano.libs.ifa.common.exceptions.NotExistingEntityException;
-import it.nextworks.nfvmano.sebastian.admin.elements.Sla;
-import it.nextworks.nfvmano.sebastian.admin.elements.SlaVirtualResourceConstraint;
-import it.nextworks.nfvmano.sebastian.admin.elements.Tenant;
-import it.nextworks.nfvmano.sebastian.admin.elements.TenantGroup;
-import it.nextworks.nfvmano.sebastian.admin.repo.GroupRepository;
-import it.nextworks.nfvmano.sebastian.admin.repo.SlaConstraintRepository;
-import it.nextworks.nfvmano.sebastian.admin.repo.SlaRepository;
-import it.nextworks.nfvmano.sebastian.admin.repo.TenantRepository;
-
 
 
 /**
@@ -57,7 +49,10 @@ public class AdminService {
 
 	@Autowired
 	private TenantRepository tenantRepository;
-	
+
+	@Autowired
+	private RemoteTenantInfoRepository remoteTenantInfoRepository;
+
 	@Autowired
 	private GroupRepository groupRepository;
 	
@@ -108,12 +103,20 @@ public class AdminService {
 		TenantGroup tg = getGroup(groupName);
 		Optional<Tenant> tenantOpt = tenantRepository.findByUsername(tenant.getUsername());
 		if (tenantOpt.isPresent()) throw new AlreadyExistingEntityException("Tenant " + tenant.getUsername() + " already present in DB.");
-		Tenant target = new Tenant(
-				tg,
-				tenant.getUsername(),
-				passwordEncoder.encode(tenant.getPassword())
-		);
-		tenantRepository.saveAndFlush(target);
+
+		Tenant target= new Tenant(tg, tenant.getUsername(), passwordEncoder.encode(tenant.getPassword()));
+		Tenant tenantCreated = tenantRepository.saveAndFlush(target);
+
+		//It add the tenantRemote info later because the tenant id is assigned after the saveAndFlush
+		if(tenant.getRemoteTenantInfos().size()>0) {
+			for(RemoteTenantInfo remoteTenantInfo: tenant.getRemoteTenantInfos()) {
+				RemoteTenantInfo remoteTenantInfoRetrieved =
+				getRemoteTenantInfo(remoteTenantInfo.getRemoteTenantName(), remoteTenantInfo.getHost());
+				tenantCreated.addRemoteTenantInfo(remoteTenantInfoRetrieved);
+				tenantRepository.save(tenantCreated);
+			}
+		}
+
 		log.debug("Tenant " + tenant.getUsername() + " added in internal DB.");
 	}
 	
@@ -137,7 +140,23 @@ public class AdminService {
 			throw new FailedOperationException("The tenant cannot be removed since it has active VSIs or VSDs.");
 		}
 	}
-	
+
+	public synchronized void associateLocalTenantToRemoteOne(String username, Long IdRemoteTenantInfo) throws NotExistingEntityException, AlreadyExistingEntityException {
+		log.debug("Processing request to associate local tenant " + username + "to remote tenant which id is "+IdRemoteTenantInfo);
+		Tenant tenant = getTenant(username);
+		RemoteTenantInfo remoteTenantInfoRetrieved = getRemoteTenantInfoByID(IdRemoteTenantInfo);
+		tenant.addRemoteTenantInfo(remoteTenantInfoRetrieved);
+		tenantRepository.save(tenant);
+	}
+
+	public synchronized void deleteAssociationEntry(String username, Long IdRemoteTenantInfo) throws NotExistingEntityException {
+		log.debug("Processing request to delete association entry between local tenant " + username + "to remote tenant which id is "+IdRemoteTenantInfo);
+		Tenant tenant = getTenant(username);
+		RemoteTenantInfo remoteTenantInfoRetrieved = getRemoteTenantInfoByID(IdRemoteTenantInfo);
+		tenant.removeRemoteTenantInfo(remoteTenantInfoRetrieved);
+		tenantRepository.save(tenant);
+	}
+
 	public synchronized Long createSla(String tenantUserName, Sla sla) throws NotExistingEntityException, MalformattedElementException {
 		log.debug("Processing request to create a new SLA for tenant " + tenantUserName);
 		Tenant tenant = getTenant(tenantUserName);
@@ -259,5 +278,48 @@ public class AdminService {
 		tenantRepository.saveAndFlush(tenant);
 		log.debug("Removed consumed resources to tenant " + tenantId);
 	}
+
+	public synchronized Long createRemoteTenantInfo(RemoteTenantInfo remoteTenantInfo)
+			throws AlreadyExistingEntityException  {
+		String remoteTenantName = remoteTenantInfo.getRemoteTenantName();
+		String nspHost = remoteTenantInfo.getRemoteTenantName();
+		log.debug("Adding new remote tenant " + remoteTenantName);
+		Optional<RemoteTenantInfo> remoteTenantOpt = remoteTenantInfoRepository.findByRemoteTenantNameAndHost(remoteTenantName, nspHost);
+		if (remoteTenantOpt.isPresent()) throw new AlreadyExistingEntityException("Remote tenant " + remoteTenantName + " with "+nspHost+ "already available into DB");
+
+		RemoteTenantInfo toStore = new RemoteTenantInfo(remoteTenantInfo.getRemoteTenantName(), remoteTenantInfo.getRemoteTenantPwd(), remoteTenantInfo.getHost());
+		RemoteTenantInfo target = remoteTenantInfoRepository.saveAndFlush(remoteTenantInfo);
+		log.debug("Remote tenant info " + remoteTenantName + " to "+ nspHost+" host added in internal DB.");
+		return target.getId();
+	}
+
+	public synchronized RemoteTenantInfo getRemoteTenantInfo(String tenantId, String nspIpAddress) throws NotExistingEntityException {
+		log.debug("Processing request to get remote tenant info" + tenantId + " at nsp IP address: "+nspIpAddress);
+		Optional<RemoteTenantInfo> remoteTenantOpt = remoteTenantInfoRepository.findByRemoteTenantNameAndHost(tenantId, nspIpAddress);
+		if (remoteTenantOpt.isPresent()) return remoteTenantOpt.get();
+		else throw new NotExistingEntityException("Remote tenant " + tenantId + "with IP "+nspIpAddress+" not existing in DB.");
+	}
+
+	public synchronized RemoteTenantInfo getRemoteTenantInfoByID(Long remoteTenantInfoId) throws NotExistingEntityException {
+		log.debug("Processing request to get remote tenant  by ID " + remoteTenantInfoId);
+		Optional<RemoteTenantInfo> remoteTenantOpt = remoteTenantInfoRepository.findById(remoteTenantInfoId);
+		if (remoteTenantOpt.isPresent()) return remoteTenantOpt.get();
+		else throw new NotExistingEntityException("Remote tenant with ID "+remoteTenantInfoId+" not existing in DB.");
+	}
+
+	public synchronized void deleteRemoteTenantInfo(Long remoteTenantInfoId)
+			throws NotExistingEntityException  {
+		log.debug("Processing request to remove remote tenant info with id " + remoteTenantInfoId);
+		RemoteTenantInfo remoteTenantInfo = getRemoteTenantInfoByID(remoteTenantInfoId);
+		remoteTenantInfoRepository.delete(remoteTenantInfo);
+		log.debug("Tenant Remote info with Id " + remoteTenantInfoId + " removed.");
+	}
+
+	public List<RemoteTenantInfo> getAllRemoteTenantsInfo() {
+		log.debug("Processing request to retrieve all the remote tenants info");
+		List<RemoteTenantInfo> remoteTenantsInfo = remoteTenantInfoRepository.findAll();
+		return remoteTenantsInfo;
+	}
+
 
 }

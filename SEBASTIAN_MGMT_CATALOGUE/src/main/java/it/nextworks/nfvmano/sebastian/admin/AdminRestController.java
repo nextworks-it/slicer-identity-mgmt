@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import it.nextworks.nfvmano.sebastian.admin.elements.RemoteTenantInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -182,6 +183,7 @@ public class AdminRestController {
 		try {
 			tenant.isValid();
 			adminService.createTenant(tenant, groupName);
+
 			return new ResponseEntity<>(HttpStatus.CREATED);
 		} catch (MalformattedElementException e) {
 			log.error("Tenant without username");
@@ -194,7 +196,8 @@ public class AdminRestController {
 			return new ResponseEntity<String>(e.getMessage(), HttpStatus.CONFLICT);
 		}
 	}
-	
+
+
 	@RequestMapping(value = "/group/{groupname}/tenant/{username}", method = RequestMethod.GET)
 	public ResponseEntity<?> getTenant(@PathVariable String username) {
 		log.debug("Received request to get info about tenant with name " + username);
@@ -213,6 +216,14 @@ public class AdminRestController {
 		List<Tenant> tenants = adminService.getAllTenants();
 		return new ResponseEntity<List<Tenant>>(tenants, HttpStatus.OK);
 	}
+
+	@RequestMapping(value = "/groups/tenants", method = RequestMethod.PUT)
+	public ResponseEntity<?> updateTenants() {
+		log.debug("Received request to get info about all tenants");
+		List<Tenant> tenants = adminService.getAllTenants();
+		return new ResponseEntity<List<Tenant>>(tenants, HttpStatus.OK);
+	}
+
 
 	@RequestMapping(value = "/group/{groupname}/tenant", method = RequestMethod.GET)
 	public ResponseEntity<?> getTenantsInGroup(@PathVariable String groupname) {
@@ -235,7 +246,30 @@ public class AdminRestController {
 			return new ResponseEntity<String>(e.getMessage(), HttpStatus.CONFLICT);
 		}
 	}
-	
+	@RequestMapping(value = "/group/{groupName}/tenant/{tenantId}", method = RequestMethod.PUT)
+	public ResponseEntity<?> updateTenant(@PathVariable String groupName, @PathVariable String tenantId, @RequestBody Long remoteTenantInfoId) {
+		log.debug("Received request to associate tenant " + tenantId+ " with remote tenant which ID is "+remoteTenantInfoId);
+		try {
+			adminService.associateLocalTenantToRemoteOne(tenantId,remoteTenantInfoId);
+			return new ResponseEntity<>(HttpStatus.OK);
+		}  catch (NotExistingEntityException e) {
+			return new ResponseEntity<String>(e.getMessage(), HttpStatus.NOT_FOUND);
+		} catch (AlreadyExistingEntityException e) {
+			return new ResponseEntity<String>(e.getMessage(), HttpStatus.CONFLICT);
+		}
+	}
+
+	@RequestMapping(value = "/group/{groupName}/tenant/{tenantId}/remotetenant", method = RequestMethod.DELETE)
+	public ResponseEntity<?> deleteRemoteTenantEntry(@PathVariable String groupName, @PathVariable String tenantId, @RequestBody Long remoteTenantInfoId) {
+		log.debug("Received request to delete association between tenant " + tenantId+ " and remote tenant which ID is "+remoteTenantInfoId);
+		try {
+			adminService.deleteAssociationEntry(tenantId,remoteTenantInfoId);
+			return new ResponseEntity<>(HttpStatus.OK);
+		}  catch (NotExistingEntityException e) {
+			return new ResponseEntity<String>(e.getMessage(), HttpStatus.NOT_FOUND);
+		}
+	}
+
 	@RequestMapping(value = "/group/{groupName}/tenant/{userName}/sla", method = RequestMethod.POST)
 	public ResponseEntity<?> createTenant(@PathVariable String userName, @RequestBody Sla sla) {
 		log.debug("Received request to create a new SLA for tenant with name " + userName);
@@ -292,6 +326,62 @@ public class AdminRestController {
 			return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}
-	
+
+
+
+	@RequestMapping(value = "/remotetenant", method = RequestMethod.POST)
+	public ResponseEntity<?> createRemoteTenantInfo(@RequestBody RemoteTenantInfo remoteTenantInfo) {
+		String remoteTenantName = remoteTenantInfo.getRemoteTenantName();
+		String nspIPAddress = remoteTenantInfo.getHost();
+		log.debug("Received request to add a new remote tenant info " + remoteTenantName + " located at " + nspIPAddress+ " IP address");
+		try {
+			Long remoteTeantId = adminService.createRemoteTenantInfo(remoteTenantInfo);
+			return new ResponseEntity<Long>(remoteTeantId, HttpStatus.OK);
+		}
+		catch (AlreadyExistingEntityException e) {
+			log.error("Tenant already existing");
+			return new ResponseEntity<String>(e.getMessage(), HttpStatus.CONFLICT);
+		}
+	}
+
+	@RequestMapping(value = "/remotetenant", method = RequestMethod.GET)
+	public ResponseEntity<?> getRemoteTenantInfo() {
+		log.debug("Received request to get a all remote tenants Info");
+		List <RemoteTenantInfo> remoteTenantsInfo= adminService.getAllRemoteTenantsInfo();
+		return new ResponseEntity<List<RemoteTenantInfo>>(remoteTenantsInfo, HttpStatus.OK);
+	}
+
+
+	@RequestMapping(value = "/remotetenant/{remotetenantinfoid}", method = RequestMethod.GET)
+	public ResponseEntity<?> getRemoteTenantInfo(@PathVariable Long remotetenantinfoid) {
+		log.debug("Received request to get a remote tenant Info with ID " + remotetenantinfoid);
+		try {
+			RemoteTenantInfo remoteTenantInfo = adminService.getRemoteTenantInfoByID(remotetenantinfoid);
+			return new ResponseEntity<RemoteTenantInfo>(remoteTenantInfo, HttpStatus.OK);
+		}
+		catch (NotExistingEntityException e) {
+			e.printStackTrace();
+			log.debug("Remote tenant info not found");
+			return new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
+		}
+	}
+
+
+
+
+
+	@RequestMapping(value = "/remotetenant/{remoteTenantInfoId}", method = RequestMethod.DELETE)
+	public ResponseEntity<?> deleteRemoteTenantInfo(@PathVariable Long remoteTenantInfoId) {
+		log.debug("Received request to get a remote tenant Info with ID " + remoteTenantInfoId);
+		try {
+			adminService.deleteRemoteTenantInfo(remoteTenantInfoId);
+			return new ResponseEntity<>(HttpStatus.OK);
+		}
+		catch (NotExistingEntityException e) {
+			log.debug("Remote tenant info with id "+remoteTenantInfoId+" not found");
+			return new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
+		}
+	}
+
 
 }

@@ -15,33 +15,19 @@
 */
 package it.nextworks.nfvmano.sebastian.admin.elements;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.persistence.CascadeType;
-import javax.persistence.ElementCollection;
-import javax.persistence.Embedded;
-import javax.persistence.Entity;
-import javax.persistence.FetchType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
-import javax.persistence.ManyToOne;
-import javax.persistence.OneToMany;
-
-import org.hibernate.annotations.Cascade;
-import org.hibernate.annotations.Fetch;
-import org.hibernate.annotations.FetchMode;
-import org.hibernate.annotations.LazyCollection;
-import org.hibernate.annotations.LazyCollectionOption;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-
 import it.nextworks.nfvmano.libs.ifa.common.enums.OperationalState;
+import it.nextworks.nfvmano.libs.ifa.common.exceptions.AlreadyExistingEntityException;
 import it.nextworks.nfvmano.libs.ifa.common.exceptions.MalformattedElementException;
 import it.nextworks.nfvmano.libs.ifa.common.exceptions.NotExistingEntityException;
+import org.hibernate.annotations.*;
+
+import javax.persistence.CascadeType;
+import javax.persistence.Entity;
+import javax.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class Tenant {
@@ -75,7 +61,12 @@ public class Tenant {
 	@Fetch(FetchMode.SELECT)
 	@Cascade(org.hibernate.annotations.CascadeType.ALL)
 	private List<String> vsiId = new ArrayList<>();
-	
+
+	@ElementCollection(fetch=FetchType.EAGER)
+	@Fetch(FetchMode.SELECT)
+	@Cascade(org.hibernate.annotations.CascadeType.ALL)
+	private List<RemoteTenantInfo> remoteTenantInfos = new ArrayList<>();
+
 	//This is to be changed to better manage MEC vs Cloud resources
 	@Embedded
 	private VirtualResourceUsage allocatedResources;
@@ -89,6 +80,17 @@ public class Tenant {
 		this.username = username;
 		this.password = password;
 		this.allocatedResources = new VirtualResourceUsage(0, 0, 0);
+	}
+
+	public Tenant(TenantGroup group,
+				  String username,
+				  String password,
+				  List<RemoteTenantInfo> remoteTenantInfos) {
+		this.group = group;
+		this.username = username;
+		this.password = password;
+		this.allocatedResources = new VirtualResourceUsage(0, 0, 0);
+		this.remoteTenantInfos = remoteTenantInfos;
 	}
 
 	/**
@@ -197,4 +199,32 @@ public class Tenant {
 		if (password == null) throw new MalformattedElementException("Tenant without password");
 	}
 
+	public List<RemoteTenantInfo> getRemoteTenantInfos() {
+		return remoteTenantInfos;
+	}
+
+	public void addRemoteTenantInfo(RemoteTenantInfo newRemoteTenantInfo) throws AlreadyExistingEntityException {
+		for(RemoteTenantInfo remoteTenantInfo: remoteTenantInfos){
+			if(remoteTenantInfo.getRemoteTenantName().equals(newRemoteTenantInfo.getRemoteTenantName())
+					&& remoteTenantInfo.getHost().equals(newRemoteTenantInfo.getHost())){
+				throw new AlreadyExistingEntityException("Association between tenant "+this.username+" and remoteTenantInfo with ID "+remoteTenantInfo.getId()+" already available");
+			}
+		}
+		this.remoteTenantInfos.add(newRemoteTenantInfo);
+	}
+
+	public void removeRemoteTenantInfo(RemoteTenantInfo newRemoteTenantInfo) {
+		int index=-1;
+		Boolean found = false;
+		for(int i=0; i<remoteTenantInfos.size(); i++){
+			if(remoteTenantInfos.get(i).getRemoteTenantName().equals(newRemoteTenantInfo.getRemoteTenantName()) &&
+					(remoteTenantInfos.get(i).getHost().equals(newRemoteTenantInfo.getHost()))){
+					index = i;
+					found=true;
+					break;
+				}
+			}
+		if(found==true)
+			remoteTenantInfos.remove(index);
+	}
 }
