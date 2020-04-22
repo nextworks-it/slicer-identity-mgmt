@@ -65,9 +65,6 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
     @Qualifier("sPasswordEncoder")
     private PasswordEncoder passwordEncoder;
 
-    @Value("${catalogue.admin}")
-    private String adminTenant;
-
     @Autowired
     private SebCorsFilter sebCorsFilter;
 
@@ -84,24 +81,6 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
         auth.userDetailsService(userService).passwordEncoder(passwordEncoder);
 
-        log.debug("Inserting bootstrap user(s).");
-
-        // Add bootstrap user & group
-
-        tenantService.createGroup(adminTenant);
-        tenantService.createGroup("user");
-        Tenant admin = new Tenant(
-                null,
-                adminTenant,
-                adminTenant
-        );
-        Tenant user = new Tenant(
-                null,
-                "user",
-                "user"
-        );
-        tenantService.createTenant(admin, adminTenant);
-        tenantService.createTenant(user, "user");
         log.info("Security configuration complete.");
     }
 

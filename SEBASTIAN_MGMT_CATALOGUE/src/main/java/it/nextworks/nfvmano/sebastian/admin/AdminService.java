@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,8 @@ import it.nextworks.nfvmano.libs.ifa.common.exceptions.AlreadyExistingEntityExce
 import it.nextworks.nfvmano.libs.ifa.common.exceptions.FailedOperationException;
 import it.nextworks.nfvmano.libs.ifa.common.exceptions.MalformattedElementException;
 import it.nextworks.nfvmano.libs.ifa.common.exceptions.NotExistingEntityException;
+
+import javax.annotation.PostConstruct;
 
 
 /**
@@ -61,7 +64,9 @@ public class AdminService {
 	
 	@Autowired
 	private SlaConstraintRepository slaConstraintRepository;
-	
+
+	@Value("${catalogue.admin}")
+	private String adminTenant;
 
 
 	@Autowired
@@ -69,6 +74,54 @@ public class AdminService {
 	private PasswordEncoder passwordEncoder;
 	
 	public AdminService() {	}
+
+
+	@PostConstruct
+	private void setupAdminAccount(){
+
+		log.debug("Inserting bootstrap user(s).");
+
+		// Add bootstrap user & group
+
+
+		Optional<TenantGroup> adminGroup = groupRepository.findByName(adminTenant);
+		if(!adminGroup.isPresent()){
+			try {
+				createGroup(adminTenant);
+				Tenant admin = new Tenant(
+						null,
+						adminTenant,
+						adminTenant
+				);
+				createTenant(admin, adminTenant);
+			} catch (AlreadyExistingEntityException e) {
+				log.error("Exception creating admin group and user!", e);
+			} catch (NotExistingEntityException e) {
+				log.error("Exception creating admin group and user!", e);
+			}
+		}else log.debug("Admin group found on DB, skipping creation!");
+		Optional<TenantGroup> userGroup = groupRepository.findByName("user");
+		if(!userGroup.isPresent()){
+			try {
+				createGroup("user");
+				Tenant user = new Tenant(
+						null,
+						"user",
+						"user"
+				);
+
+				createTenant(user, "user");
+			} catch (AlreadyExistingEntityException e) {
+				log.error("Exception creating regular group and user!", e);
+			} catch (NotExistingEntityException e) {
+				log.error("Exception creating regular group and user!", e);
+			}
+
+
+		}else log.debug("User group found on DB, skipping creation!");
+
+
+	}
 
 	public synchronized void createGroup(String name) throws AlreadyExistingEntityException {
 		log.debug("Processing request to create a new group " + name);
