@@ -21,6 +21,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
 import it.nextworks.nfvmano.sebastian.admin.elements.RemoteTenantInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +52,7 @@ import it.nextworks.nfvmano.sebastian.admin.elements.Sla;
 import it.nextworks.nfvmano.sebastian.admin.elements.Tenant;
 import it.nextworks.nfvmano.sebastian.admin.elements.TenantGroup;
 
-
+@Api(tags = "User, group and SLA management API")
 @RestController
 @CrossOrigin
 @RequestMapping("/vs/admin")
@@ -198,6 +202,13 @@ public class AdminRestController {
 	}
 
 
+	@ApiOperation(value = "Get Tenant")
+	@ApiResponses(value = {
+			@ApiResponse(code = 200, message = "Tenant", response = Tenant.class),
+			//@ApiResponse(code = 400, message = "The request contains elements impossible to process", response = ResponseEntity.class),
+			//@ApiResponse(code = 404, message = "The element with the supplied id was not found", response = ResponseEntity.class),
+			//@ApiResponse(code = 500, message = "Status 500", response = ResponseEntity.class)
+	})
 	@RequestMapping(value = "/group/{groupname}/tenant/{username}", method = RequestMethod.GET)
 	public ResponseEntity<?> getTenant(@PathVariable String username) {
 		log.debug("Received request to get info about tenant with name " + username);
@@ -284,7 +295,14 @@ public class AdminRestController {
 			return new ResponseEntity<String>(e.getMessage(), HttpStatus.NOT_FOUND);
 		} 
 	}
-	
+
+	@ApiOperation(value = "Get user SLAs")
+	@ApiResponses(value = {
+			@ApiResponse(code = 200, message = "List of user SLAs", response = Sla.class, responseContainer = "Set"),
+			//@ApiResponse(code = 400, message = "The request contains elements impossible to process", response = ResponseEntity.class),
+			//@ApiResponse(code = 404, message = "The element with the supplied id was not found", response = ResponseEntity.class),
+			//@ApiResponse(code = 500, message = "Status 500", response = ResponseEntity.class)
+	})
 	@RequestMapping(value = "/group/{groupname}/tenant/{username}/sla", method = RequestMethod.GET)
 	public ResponseEntity<?> getTenantSlas(@PathVariable String username) {
 		log.debug("Received request to get all the SLAs associated to the tenant with name " + username);
