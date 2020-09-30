@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>it.nextworks.nfvmano</groupId>
-	<artifactId>SebastianMgmtCatalogue</artifactId>
+	<artifactId>sebastian-mgmt-catalogue</artifactId>
 	<version>0.0.2-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
@@ -61,7 +61,7 @@
 		</dependency>
 		<dependency>
 			<groupId>it.nextworks.nfvmano</groupId>
-			<artifactId>NfvManoLibsPolicyMgtIf</artifactId>
+			<artifactId>nfv-mano-libs-policy-mgt-if</artifactId>
 			<version>0.0.2-SNAPSHOT</version>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/javax.servlet/servlet-api -->
@@ -87,7 +87,7 @@
 
 		<dependency>
                         <groupId>it.nextworks.nfvmano</groupId>
-			<artifactId>SebastianMgmtIM</artifactId>
+			<artifactId>sebastian-mgmt-im</artifactId>
                         <version>0.0.2-SNAPSHOT</version>
                 </dependency>
 
